@@ -31,10 +31,15 @@ curl -fsSL https://raw.githubusercontent.com/elchuzade/typeclip/main/install.sh 
 3. Open it. macOS will say it "can't be opened" because the app isn't notarized (notarization costs $99/year). To open it anyway:
    **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to TypeClip.
 
-### Then: allow Accessibility
+### Then: allow one permission
 
-macOS only lets an app type into other apps if you allow it. When asked, open
-**System Settings → Privacy & Security → Accessibility** and switch **TypeClip** on.
+The first time you open TypeClip, it explains in plain words what it needs and why. Then macOS shows its own standard message:
+
+> "TypeClip" would like to control this Mac and access your data.
+
+That sounds scarier than it is. macOS uses the same wording for **every** app that needs the Accessibility permission (window managers, launchers, text expanders), and apps can't change it. For TypeClip it only means *"can press keys for you"*. TypeClip never reads your screen or files, never records what you type, and never goes online. The code is all here if you want to check.
+
+Click **Open System Settings** and switch **TypeClip** on. TypeClip notices straight away and tells you it's ready.
 
 You'll see a ⌨️ keyboard icon in your menu bar. That's it.
 
@@ -60,11 +65,12 @@ Tips:
 
 ## How it works
 
-About 500 lines of Swift, with no dependencies:
+About 600 lines of Swift, with no dependencies:
 
 - [`HotKey.swift`](Sources/HotKey.swift) registers a global shortcut with Carbon's `RegisterEventHotKey`.
 - [`Typer.swift`](Sources/Typer.swift) posts a `CGEvent` key press for every character using `keyboardSetUnicodeString`, so it works with any keyboard layout, accents, emoji, and non-Latin scripts.
 - [`Pacing.swift`](Sources/Pacing.swift) plans the gap after every character. The human-like model uses a log-normal key interval plus pauses at word and sentence boundaries.
+- [`PermissionGuide.swift`](Sources/PermissionGuide.swift) explains the Accessibility permission before macOS asks for it, and confirms once it's on.
 - [`AppDelegate.swift`](Sources/AppDelegate.swift) runs the menu bar UI, the countdown, and settings.
 
 TypeClip doesn't connect to the internet, collect data, or store your clipboard. It only reads the clipboard when you press the shortcut.

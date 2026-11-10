@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var hotKey: HotKey?
     private var escMonitor: Any?
     private var countdownTimer: Timer?
+    private let permissionGuide = PermissionGuide()
     private let defaults = UserDefaults.standard
 
     // MARK: Settings
@@ -46,11 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         registerHotKey()
 
-        // Ask for Accessibility permission on first launch (needed to type into other apps).
-        if !AXIsProcessTrusted() {
-            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-            AXIsProcessTrustedWithOptions(options)
-        }
+        // Explain, then ask for, Accessibility permission (needed to type into other apps).
+        permissionGuide.start(shortcut: hotKeyCombo.label)
     }
 
     private func registerHotKey() {
@@ -131,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.removeAllItems()
 
         if !AXIsProcessTrusted() {
-            menu.addItem(item("⚠︎ Grant Accessibility Permission…", #selector(openAccessibilitySettings)))
+            menu.addItem(item("⚠︎ Allow TypeClip to Type…", #selector(showPermissionAlert)))
             menu.addItem(.separator())
         }
 
@@ -215,18 +213,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openRepo() { NSWorkspace.shared.open(Self.repoURL) }
 
-    @objc private func openAccessibilitySettings() {
-        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-        NSWorkspace.shared.open(url)
-    }
-
     // MARK: Alerts
 
-    private func showPermissionAlert() {
-        let ok = confirm("TypeClip needs Accessibility permission",
-                         "macOS only lets apps type into other apps if you allow it.\n\nOpen System Settings → Privacy & Security → Accessibility and switch TypeClip on.",
-                         okTitle: "Open Settings")
-        if ok { openAccessibilitySettings() }
+    @objc private func showPermissionAlert() {
+        permissionGuide.start(shortcut: hotKeyCombo.label)
     }
 
     @discardableResult
