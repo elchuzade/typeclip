@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # One-line installer for TypeClip:
-#   curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/typeclip/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/elchuzade/typeclip/main/install.sh | bash
 set -euo pipefail
 
-REPO="YOUR_USERNAME/typeclip"
+REPO="elchuzade/typeclip"
 URL="https://github.com/$REPO/releases/latest/download/TypeClip.zip"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT

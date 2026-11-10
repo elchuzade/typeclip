@@ -21,12 +21,12 @@ Sometimes pasting doesn't work, or doesn't work the way you want:
 Open **Terminal** (press ⌘ Space, type "Terminal", press Return), paste this, and press Return:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/typeclip/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/elchuzade/typeclip/main/install.sh | bash
 ```
 
 ### Option B: download manually
 
-1. Download **TypeClip.zip** from the [latest release](https://github.com/YOUR_USERNAME/typeclip/releases/latest).
+1. Download **TypeClip.zip** from the [latest release](https://github.com/elchuzade/typeclip/releases/latest).
 2. Double-click the zip and drag **TypeClip.app** into **Applications**.
 3. Open it. macOS will say it "can't be opened" because the app isn't notarized (notarization costs $99/year). To open it anyway:
    **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to TypeClip.
@@ -40,27 +40,32 @@ You'll see a ⌨️ keyboard icon in your menu bar. That's it.
 
 ## Use
 
-| Action | How |
-| --- | --- |
-| Type clipboard | **⌃⌥⌘V**, or click the menu bar icon → *Type Clipboard* |
-| Stop typing | **Esc**, or press the shortcut again |
-| Change speed | Menu bar icon → *Speed* |
-| Change shortcut | Menu bar icon → *Shortcut* |
-| New lines in chat apps (Slack, Discord, WhatsApp) without sending | Menu bar icon → *Line Breaks* → *Shift + Return* |
-| Start automatically | Menu bar icon → *Open at Login* |
+| Action                                                            | How                                                     |
+| ----------------------------------------------------------------- | ------------------------------------------------------- |
+| Type clipboard                                                    | **⌃⌥⌘V**, or click the menu bar icon → _Type Clipboard_ |
+| Stop typing                                                       | **Esc**, or press the shortcut again                    |
+| See time left                                                     | A live countdown next to the menu bar icon              |
+| Change speed                                                      | Menu bar icon → _Speed_ (default: _Human-like_)         |
+| Change shortcut                                                   | Menu bar icon → _Shortcut_                              |
+| New lines in chat apps (Slack, Discord, WhatsApp) without sending | Menu bar icon → _Line Breaks_ → _Shift + Return_        |
+| Start automatically                                               | Menu bar icon → _Open at Login_                         |
+
+**Human-like speed** (the default) types with a natural rhythm instead of at a robotic, even pace. Each key waits a random, realistic gap (about 45–450 ms, averaging 60–100 words per minute), with slightly longer pauses after words, commas, sentences and line breaks, plus the occasional "thinking" pause. The whole timing plan is worked out before typing starts, so the countdown is exact. Pick _Very fast_, _Fast_, _Normal_ or _Slow_ for a steady pace instead.
 
 Tips:
+
 - Let go of the shortcut keys straight away. TypeClip waits until you do before it starts.
 - Code editors may auto-indent or auto-close brackets while TypeClip types. Turn those features off temporarily if needed.
-- Password fields that use macOS *Secure Input* ignore typed events from apps. That's a macOS security feature.
+- Password fields that use macOS _Secure Input_ ignore typed events from apps. That's a macOS security feature.
 
 ## How it works
 
-About 300 lines of Swift, with no dependencies:
+About 500 lines of Swift, with no dependencies:
 
 - [`HotKey.swift`](Sources/HotKey.swift) registers a global shortcut with Carbon's `RegisterEventHotKey`.
 - [`Typer.swift`](Sources/Typer.swift) posts a `CGEvent` key press for every character using `keyboardSetUnicodeString`, so it works with any keyboard layout, accents, emoji, and non-Latin scripts.
-- [`AppDelegate.swift`](Sources/AppDelegate.swift) runs the menu bar UI and settings.
+- [`Pacing.swift`](Sources/Pacing.swift) plans the gap after every character. The human-like model uses a log-normal key interval plus pauses at word and sentence boundaries.
+- [`AppDelegate.swift`](Sources/AppDelegate.swift) runs the menu bar UI, the countdown, and settings.
 
 TypeClip doesn't connect to the internet, collect data, or store your clipboard. It only reads the clipboard when you press the shortcut.
 
@@ -69,7 +74,7 @@ TypeClip doesn't connect to the internet, collect data, or store your clipboard.
 You need Xcode or the Xcode Command Line Tools (`xcode-select --install`).
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/typeclip.git
+git clone https://github.com/elchuzade/typeclip.git
 cd typeclip
 ./build.sh
 open build/TypeClip.app

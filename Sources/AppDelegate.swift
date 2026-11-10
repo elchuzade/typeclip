@@ -2,27 +2,20 @@ import Cocoa
 import ServiceManagement
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    static let repoURL = URL(string: "https://github.com/YOUR_USERNAME/typeclip")!
+    static let repoURL = URL(string: "https://github.com/elchuzade/typeclip")!
 
     private var statusItem: NSStatusItem!
     private let typer = Typer()
     private var hotKey: HotKey?
     private var escMonitor: Any?
+    private var countdownTimer: Timer?
     private let defaults = UserDefaults.standard
 
     // MARK: Settings
 
-    private struct Speed { let label: String; let delay: TimeInterval }
-    private let speeds: [Speed] = [
-        Speed(label: "Very fast", delay: 0.004),
-        Speed(label: "Fast", delay: 0.012),
-        Speed(label: "Normal", delay: 0.03),
-        Speed(label: "Slow", delay: 0.07),
-    ]
-
-    private var speedIndex: Int {
-        get { defaults.object(forKey: "speedIndex") as? Int ?? 1 }
-        set { defaults.set(newValue, forKey: "speedIndex") }
+    private var pacing: Pacing {
+        get { Pacing(rawValue: defaults.string(forKey: "pacing") ?? "") ?? .human }
+        set { defaults.set(newValue.rawValue, forKey: "pacing") }
     }
 
     private var hotKeyCombo: HotKey.Combo {
@@ -41,7 +34,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: Lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.button?.imagePosition = .imageLeading
+        // Monospaced digits so the countdown doesn't wobble as numbers change.
+        statusItem.button?.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         setIcon(typing: false)
 
         let menu = NSMenu()
@@ -82,18 +78,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             NSSound.beep(); return
         }
 
-        let delay = speeds[speedIndex].delay
-        if text.count > 2000 {
-            let seconds = Int(Double(text.count) * delay)
-            if !confirm("Type \(text.count) characters?",
-                        "This will take about \(seconds) seconds. Press Esc at any time to stop.") { return }
+        let characters = Typer.characters(of: text)
+        let delays = pacing.delays(for: characters)
+        let total = delays.reduce(0, +)
+
+        if total > 120 {
+            if !confirm("Type \(characters.count) characters?",
+                        "This will take about \(Self.format(total)). Press Esc at any time to stop.") { return }
         }
 
         setIcon(typing: true)
+        showCountdown(total)
         escMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53 { self?.stopTyping() } // Esc
         }
-        typer.type(text, delay: delay, lineBreaks: lineBreakMode) { [weak self] in
+        // Tick often so the shown second changes right on time.
+        let timer = Timer(timeInterval: 0.2, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.showCountdown(self.typer.remainingTime)
+        }
+        RunLoop.main.add(timer, forMode: .common) // keep ticking while the menu is open
+        countdownTimer = timer
+        typer.type(characters, delays: delays, lineBreaks: lineBreakMode) { [weak self] in
             self?.typingFinished()
         }
     }
@@ -103,7 +109,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func typingFinished() {
         if let escMonitor { NSEvent.removeMonitor(escMonitor) }
         escMonitor = nil
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        statusItem.button?.title = ""
         setIcon(typing: false)
+    }
+
+    /// Shows the time left next to the menu bar icon, e.g. "42s" or "1:05".
+    private func showCountdown(_ seconds: TimeInterval) {
+        statusItem.button?.title = " " + Self.format(seconds)
+    }
+
+    static func format(_ seconds: TimeInterval) -> String {
+        let s = Int(seconds.rounded(.up))
+        return s < 60 ? "\(s)s" : String(format: "%d:%02d", s / 60, s % 60)
     }
 
     // MARK: Menu
@@ -117,17 +136,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         if typer.isRunning {
-            menu.addItem(item("Stop Typing (Esc)", #selector(stopTyping)))
+            menu.addItem(item("Stop Typing (Esc), \(Self.format(typer.remainingTime)) left", #selector(stopTyping)))
         } else {
             let typeItem = item("Type Clipboard   \(hotKeyCombo.label)", #selector(startTyping))
             menu.addItem(typeItem)
         }
         menu.addItem(.separator())
 
-        menu.addItem(submenu("Speed", speeds.enumerated().map { i, speed in
-            let it = item(speed.label, #selector(selectSpeed(_:)))
+        menu.addItem(submenu("Speed", Pacing.allCases.enumerated().map { i, p in
+            let it = item(p.label, #selector(selectSpeed(_:)))
             it.tag = i
-            it.state = i == speedIndex ? .on : .off
+            it.state = p == pacing ? .on : .off
             return it
         }))
 
@@ -169,7 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return parent
     }
 
-    @objc private func selectSpeed(_ sender: NSMenuItem) { speedIndex = sender.tag }
+    @objc private func selectSpeed(_ sender: NSMenuItem) { pacing = Pacing.allCases[sender.tag] }
 
     @objc private func selectHotKey(_ sender: NSMenuItem) {
         hotKeyCombo = HotKey.presets[sender.tag]

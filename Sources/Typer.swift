@@ -11,21 +11,34 @@ final class Typer {
     private let lock = NSLock()
     private var cancelled = false
     private var running = false
+    private var remaining: TimeInterval = 0
 
     var isRunning: Bool { lock.lock(); defer { lock.unlock() }; return running }
 
-    /// Starts typing `text` on a background thread.
+    /// Seconds of typing left (sum of the delays not yet waited).
+    var remainingTime: TimeInterval { lock.lock(); defer { lock.unlock() }; return remaining }
+
+    /// Splits text into the characters that will be typed.
+    static func characters(of text: String) -> [Character] {
+        // Normalise Windows-style line endings so we don't press Return twice.
+        Array(text.replacingOccurrences(of: "\r\n", with: "\n"))
+    }
+
+    /// Starts typing on a background thread.
     /// - Parameters:
-    ///   - delay: seconds between characters
+    ///   - characters: from `Typer.characters(of:)`
+    ///   - delays: seconds to wait after each character (same count as `characters`)
     ///   - onFinish: called on the main thread when done or cancelled
-    func type(_ text: String,
-              delay: TimeInterval,
+    func type(_ characters: [Character],
+              delays: [TimeInterval],
               lineBreaks: LineBreakMode,
               onFinish: @escaping () -> Void) {
+        precondition(characters.count == delays.count)
         lock.lock()
         if running { lock.unlock(); return }
         running = true
         cancelled = false
+        remaining = delays.reduce(0, +)
         lock.unlock()
 
         Thread.detachNewThread { [weak self] in
@@ -33,16 +46,14 @@ final class Typer {
             Self.waitForModifierRelease()
 
             let source = CGEventSource(stateID: .hidSystemState)
-            // Normalise Windows-style line endings so we don't press Return twice.
-            let normalised = text.replacingOccurrences(of: "\r\n", with: "\n")
-
-            for character in normalised {
+            for (character, delay) in zip(characters, delays) {
                 if self.isCancelled { break }
                 Self.post(character, source: source, lineBreaks: lineBreaks)
                 Thread.sleep(forTimeInterval: delay)
+                self.lock.lock(); self.remaining = max(0, self.remaining - delay); self.lock.unlock()
             }
 
-            self.lock.lock(); self.running = false; self.lock.unlock()
+            self.lock.lock(); self.running = false; self.remaining = 0; self.lock.unlock()
             DispatchQueue.main.async(execute: onFinish)
         }
     }
